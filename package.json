@@ -1,0 +1,17 @@
+{
+  "name": "yuefan-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "约饭 - 朋友聚餐组织工具（前后端一体化项目）",
+  "scripts": {
+    "server:dev": "cd server && npm run dev",
+    "server:build": "cd server && npm run build",
+    "server:start": "cd server && npm start",
+    "server:install": "cd server && npm install",
+    "weapp:dev": "cd weapp && npm run dev:weapp",
+    "weapp:build": "cd weapp && npm run build:weapp",
+    "weapp:install": "cd weapp && npm install",
+    "install:all": "npm run server:install && npm run weapp:install",
+    "dev": "npm run server:dev"
+  }
+}

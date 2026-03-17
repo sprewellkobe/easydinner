@@ -1,0 +1,82 @@
+.location-picker {
+  .selected-location {
+    display: flex;
+    align-items: center;
+    padding: 14px 20px;
+    background: #f0fdf4;
+    border-radius: 14px;
+    border: 1.5px solid #86efac;
+
+    .selected-icon {
+      font-size: 28px;
+      margin-right: 10px;
+    }
+    .selected-name {
+      flex: 1;
+      font-size: 26px;
+      color: #166534;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .selected-change {
+      font-size: 22px;
+      color: #f97316;
+      padding: 4px 14px;
+      background: #fff7ed;
+      border-radius: 8px;
+      border: 1px solid #fed7aa;
+    }
+  }
+
+  .search-section {
+    .locating-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 20px;
+      height: 64px;
+      background: #fef3c7;
+      border: 1.5px solid #fcd34d;
+      border-radius: 14px;
+
+      .locating-icon {
+        font-size: 28px;
+        margin-right: 10px;
+      }
+      .locating-text {
+        font-size: 24px;
+        color: #92400e;
+      }
+    }
+
+    .choose-location-btn {
+      display: flex;
+      align-items: center;
+      padding: 14px 20px;
+      height: 64px;
+      background: #f9fafb;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 14px;
+
+      &:active {
+        background: #fff7ed;
+        border-color: #fed7aa;
+      }
+
+      .choose-icon {
+        font-size: 28px;
+        margin-right: 10px;
+      }
+      .choose-text {
+        flex: 1;
+        font-size: 26px;
+        color: #9ca3af;
+      }
+      .choose-arrow {
+        font-size: 32px;
+        color: #d1d5db;
+      }
+    }
+  }
+}
