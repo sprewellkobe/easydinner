@@ -23,6 +23,7 @@ yuefan-app/
 │   │   ├── app/api/       # API 路由
 │   │   │   ├── gatherings/            # 饭局 CRUD
 │   │   │   │   ├── route.ts           # POST 创建饭局
+│   │   │   │   ├── batch/             # POST 批量获取饭局
 │   │   │   │   └── [id]/
 │   │   │   │       ├── route.ts       # GET 饭局详情
 │   │   │   │       ├── join/          # POST 加入饭局
@@ -36,7 +37,8 @@ yuefan-app/
 │   │   │   └── restaurant-detail/     # 餐厅详情
 │   │   ├── lib/
 │   │   │   ├── db.ts      # 数据模型 + JSON 文件持久化
-│   │   │   └── config.ts  # 统一配置管理（环境变量）
+│   │   │   ├── config.ts  # 统一配置管理（环境变量）
+│   │   │   └── geo.ts     # 地理计算（距离、中心点、评分）
 │   │   └── middleware.ts  # CORS 中间件
 │   └── data/              # 数据存储目录（自动创建）
 │       └── gatherings.json
@@ -167,6 +169,7 @@ npm run weapp:build
 | `POST` | `/api/gatherings/:id/vote` | 投票 |
 | `POST` | `/api/gatherings/:id/confirm` | 确认餐厅 |
 | `POST` | `/api/gatherings/:id/delete` | 删除饭局 |
+| `POST` | `/api/gatherings/batch` | 批量获取饭局详情 |
 | `GET` | `/api/search-poi?keyword=xxx` | POI 搜索 |
 | `GET` | `/api/nearby-poi?lat=x&lng=y` | 附近 POI |
 | `GET` | `/api/reverse-geocode?lng=x&lat=y` | 逆地理编码 |
@@ -188,7 +191,7 @@ score = avgDistance × 0.7 + maxDistance × 0.3
 2. 以中心点为圆心、3km 为半径搜索餐厅（无结果时自动扩大）
 3. 根据聚餐类型过滤（轻餐/正餐/夜宵）
 4. 计算每家餐厅到每个人的距离，按评分排序
-5. 返回 Top 5 推荐，附带交通信息
+5. 多样性选择 Top 10 推荐（兼顾品类/价格多样性），附带交通信息
 
 ## 📋 配置参数
 
@@ -197,7 +200,7 @@ score = avgDistance × 0.7 + maxDistance × 0.3
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `RECOMMEND_BASE_RADIUS` | 3000m | 推荐搜索半径 |
-| `RECOMMEND_MAX_RESULTS` | 5 | 最大推荐数量 |
+| `RECOMMEND_MAX_RESULTS` | 10 | 最大推荐数量 |
 | `SCORE_AVG_DISTANCE_WEIGHT` | 0.7 | 平均距离权重 |
 | `SCORE_MAX_DISTANCE_WEIGHT` | 0.3 | 最远距离权重 |
 | `FORMAL_MIN_RATING` | 4.0 | 正餐最低评分 |

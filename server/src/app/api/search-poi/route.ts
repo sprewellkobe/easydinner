@@ -11,6 +11,8 @@ import {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // POI 搜索 API - 使用高德地图 Web 服务
 // 同时调用「关键字搜索」和「输入提示」两个接口，合并去重，精度可达小区/门牌号
 
@@ -88,8 +90,8 @@ function parseLocation(loc: string): [number, number] | null {
 
 export async function GET(request: NextRequest) {
   const keyword = request.nextUrl.searchParams.get('keyword') || '';
-  const userLat = parseFloat(request.nextUrl.searchParams.get('lat') || '39.9042');
-  const userLng = parseFloat(request.nextUrl.searchParams.get('lng') || '116.4074');
+  const userLat = parseFloat(request.nextUrl.searchParams.get('lat') || String(DEFAULT_CENTER_LAT));
+  const userLng = parseFloat(request.nextUrl.searchParams.get('lng') || String(DEFAULT_CENTER_LNG));
 
   if (!keyword.trim()) {
     return NextResponse.json({ results: [] });

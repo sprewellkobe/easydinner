@@ -95,11 +95,6 @@ function getEarliestDate(): string {
   return isTodayAvailable() ? getTodayStr() : getDateStr(1)
 }
 
-// 获取最晚可选日期（从今天起1个月内）
-function getLatestDate(): string {
-  return getDateStr(30)
-}
-
 const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 interface DateOption {
@@ -450,7 +445,7 @@ export default function Index() {
                         e.stopPropagation()
                         Taro.showModal({
                           title: '确认删除',
-                          content: `确定要删除「${g.title}」吗？删除后其他参与者也将无法查看。`,
+                          content: `确定要删除「${g.title}」吗？删除后其他干饭人也将无法查看。`,
                           confirmColor: '#ef4444',
                           success: async (res) => {
                             if (res.confirm) {
@@ -515,8 +510,12 @@ export default function Index() {
           <Input
             className='form-input'
             value={creatorName}
-            maxlength={8}
-            onInput={(e) => setCreatorName(e.detail.value)}
+            maxlength={-1}
+            onInput={(e) => {
+              const val = e.detail.value
+              // 不在输入过程中截断，让输入法正常工作；超长时截取前8个字符
+              setCreatorName(val.length > 8 ? val.slice(0, 8) : val)
+            }}
             placeholder='输入你的名字（1-8字）'
           />
         </View>

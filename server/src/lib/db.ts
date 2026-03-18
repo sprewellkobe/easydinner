@@ -111,19 +111,27 @@ function loadFromFile(): Map<string, Gathering> {
   return new Map<string, Gathering>();
 }
 
-// 保存内存数据到文件
+// ---- 写入锁：保证并发写入串行化，防止数据丢失 ----
+let writeQueue: Promise<void> = Promise.resolve();
+
 function saveToFile() {
-  ensureDataDir();
-  try {
-    const arr = Array.from(gatherings.values());
-    const json = JSON.stringify(arr, null, 2);
-    // 先写临时文件再 rename，防止写入中途崩溃导致文件损坏
-    const tmpFile = DB_FILE + '.tmp';
-    fs.writeFileSync(tmpFile, json, 'utf-8');
-    fs.renameSync(tmpFile, DB_FILE);
-  } catch (err) {
-    console.error('[DB] 保存数据文件失败:', err);
-  }
+  // 将写入操作串行排队，后续写入等待前一个完成
+  writeQueue = writeQueue.then(() => {
+    return new Promise<void>((resolve) => {
+      ensureDataDir();
+      try {
+        const arr = Array.from(gatherings.values());
+        const json = JSON.stringify(arr, null, 2);
+        // 先写临时文件再 rename，防止写入中途崩溃导致文件损坏
+        const tmpFile = DB_FILE + '.tmp';
+        fs.writeFileSync(tmpFile, json, 'utf-8');
+        fs.renameSync(tmpFile, DB_FILE);
+      } catch (err) {
+        console.error('[DB] 保存数据文件失败:', err);
+      }
+      resolve();
+    });
+  });
 }
 
 // 使用 globalThis 确保 Next.js 热更新时不重复加载
@@ -189,8 +197,11 @@ export function confirmGathering(gatheringId: string, restaurant: Restaurant): G
   return gathering;
 }
 
+// 每人最多投票数
+const MAX_VOTES_PER_PERSON = 3;
+
 // 投票/取消投票（toggle）
-export function voteRestaurant(gatheringId: string, restaurantId: string, participantId: string): { gathering: Gathering; voted: boolean } | undefined {
+export function voteRestaurant(gatheringId: string, restaurantId: string, participantId: string): { gathering: Gathering; voted: boolean; error?: string } | undefined {
   const gathering = gatherings.get(gatheringId);
   if (!gathering) return undefined;
   if (gathering.status === 'confirmed') return undefined;
@@ -212,6 +223,15 @@ export function voteRestaurant(gatheringId: string, restaurantId: string, partic
     voters.splice(existIdx, 1);
     voted = false;
   } else {
+    // 检查该参与者已投了几家餐厅
+    const currentVoteCount = Object.values(gathering.votes).filter(
+      voterList => voterList.includes(participantId)
+    ).length;
+
+    if (currentVoteCount >= MAX_VOTES_PER_PERSON) {
+      return { gathering, voted: false, error: `每人最多投${MAX_VOTES_PER_PERSON}家餐厅` };
+    }
+
     // 新投票
     voters.push(participantId);
     voted = true;
@@ -257,4 +277,16 @@ export function cleanupExpiredGatherings(): number {
 
 export function getAllGatherings(): Gathering[] {
   return Array.from(gatherings.values());
+}
+
+// 批量获取饭局（按 ID 列表查询，最多 50 个）
+export function getGatheringsByIds(ids: string[]): Gathering[] {
+  const MAX_BATCH = 50;
+  const limitedIds = ids.slice(0, MAX_BATCH);
+  const results: Gathering[] = [];
+  for (const id of limitedIds) {
+    const g = gatherings.get(id);
+    if (g) results.push(g);
+  }
+  return results;
 }

@@ -1,12 +1,11 @@
 import { View, Text, Input, ScrollView, Button } from '@tarojs/components'
-import Taro, { useRouter, useShareAppMessage, useShareTimeline } from '@tarojs/taro'
+import Taro, { useRouter, useShareAppMessage, useShareTimeline, useDidShow, useDidHide } from '@tarojs/taro'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import LocationPicker from '../../components/LocationPicker'
 import RestaurantMap from '../../components/RestaurantMap'
 import {
   getGathering, joinGathering, getRecommendations,
-  confirmRestaurant, voteRestaurant, getVotes,
-  getRestaurantDetail, storage, saveMyGatheringId,
+  confirmRestaurant, voteRestaurant, storage, saveMyGatheringId,
 } from '../../utils/api'
 import { formatDistance } from '../../utils/geo'
 import type { Gathering, Restaurant, Location } from '../../utils/types'
@@ -22,7 +21,7 @@ const DINING_TYPE_LABELS: Record<string, { emoji: string; label: string }> = {
 
 export default function GatheringPage() {
   const router = useRouter()
-  const gatheringId = router.params.id || ''
+  const gatheringId = router.params.id || router.params.dinnerID || ''
 
   const [gathering, setGathering] = useState<Gathering | null>(null)
   const [restaurants, setRestaurants] = useState<Restaurant[]>([])
@@ -122,13 +121,25 @@ export default function GatheringPage() {
     fetchGathering()
   }, [fetchGathering])
 
+  // 页面可见性：后台时暂停轮询，前台时恢复
+  const isPageVisibleRef = useRef(true)
+  useDidShow(() => { isPageVisibleRef.current = true })
+  useDidHide(() => { isPageVisibleRef.current = false })
+
+  // 页面加载时拉取推荐（gathering 首次加载后），以及参与者人数变化时重新拉取
+  const prevParticipantCountRef = useRef(-1)
   useEffect(() => {
-    if (gathering && gathering.participants.length > 0 && gathering.status !== 'confirmed') {
+    if (!gathering || gathering.participants.length === 0 || gathering.status === 'confirmed') return
+
+    const currentCount = gathering.participants.length
+    // 首次加载或参与者人数变化时拉取推荐
+    if (prevParticipantCountRef.current !== currentCount) {
+      prevParticipantCountRef.current = currentCount
       fetchRecommendations()
     }
-  }, [gathering?.participants.length])
+  }, [gathering?.participants.length, gathering?.status])
 
-  // 轮询
+  // 轮询：每5秒检查一次，页面不可见时跳过
   const participantCountRef = useRef(0)
   const statusRef = useRef<string>('')
 
@@ -143,6 +154,9 @@ export default function GatheringPage() {
     if (statusRef.current === 'confirmed') return
 
     const timer = setInterval(async () => {
+      // 页面不可见时跳过轮询，节省流量和电量
+      if (!isPageVisibleRef.current) return
+
       if (statusRef.current === 'confirmed') {
         clearInterval(timer)
         return
@@ -163,7 +177,6 @@ export default function GatheringPage() {
           if (g.participants.length !== participantCountRef.current) {
             setGathering(g)
             participantCountRef.current = g.participants.length
-            if (g.participants.length > 0) fetchRecommendations()
           }
         }
       } catch { /* 静默 */ }
@@ -208,6 +221,19 @@ export default function GatheringPage() {
 
   const handleVote = useCallback(async (restaurantId: string) => {
     if (!currentParticipantId || votingId) return
+
+    // 前端拦截：如果是新投票（非取消），检查已投数量
+    const alreadyVoted = votes[restaurantId]?.includes(currentParticipantId) || false
+    if (!alreadyVoted) {
+      const myVoteCount = Object.values(votes).filter(
+        voterList => voterList.includes(currentParticipantId)
+      ).length
+      if (myVoteCount >= 3) {
+        Taro.showToast({ title: '每人最多投3家餐厅', icon: 'none' })
+        return
+      }
+    }
+
     setVotingId(restaurantId)
     try {
       const data = await voteRestaurant(gatheringId, {
@@ -221,11 +247,13 @@ export default function GatheringPage() {
         Taro.showToast({ title: '餐厅列表已更新，正在刷新…', icon: 'none' })
         fetchRecommendations()
         fetchGathering()
+      } else if (msg.includes('最多投')) {
+        Taro.showToast({ title: msg, icon: 'none' })
       }
     } finally {
       setVotingId(null)
     }
-  }, [currentParticipantId, votingId, gatheringId, fetchRecommendations, fetchGathering])
+  }, [currentParticipantId, votingId, gatheringId, votes, fetchRecommendations, fetchGathering])
 
   const handleConfirm = useCallback(async (restaurant: Restaurant) => {
     if (!isCreator) return
@@ -399,7 +427,7 @@ export default function GatheringPage() {
       {/* ====== 参与者列表 ====== */}
       <View className='section-card'>
         <View className='section-header'>
-          <Text className='section-title'>👥 参与者 ({gathering.participants.length})</Text>
+          <Text className='section-title'>🍚 干饭人 ({gathering.participants.length})</Text>
         </View>
 
         {gathering.participants.map((p, i) => {
@@ -462,8 +490,11 @@ export default function GatheringPage() {
                   <Input
                     className='form-input'
                     value={joinName}
-                    maxlength={8}
-                    onInput={(e) => setJoinName(e.detail.value)}
+                    maxlength={-1}
+                    onInput={(e) => {
+                      const val = e.detail.value
+                      setJoinName(val.length > 8 ? val.slice(0, 8) : val)
+                    }}
                     placeholder='输入你的名字（1-8字）'
                   />
                 </View>
@@ -497,7 +528,7 @@ export default function GatheringPage() {
         <View className='section-card'>
           <View className='section-header'>
             <Text className='section-title'>🍴 推荐餐厅</Text>
-            <Text className='section-hint'>👆 点击投票选出你中意的餐厅，票数最多排最前</Text>
+            <Text className='section-hint'>👆 点击投票选出你中意的餐厅（每人最多3票）</Text>
           </View>
 
           {loadingRec && restaurants.length === 0 && (
@@ -618,7 +649,7 @@ export default function GatheringPage() {
                 {/* 每人距离 */}
                 {r.distanceToParticipants && r.distanceToParticipants.length > 0 && (
                   <View className='mini-distances'>
-                    <Text className='mini-dist-title'>各参与者距离</Text>
+                    <Text className='mini-dist-title'>各干饭人距离</Text>
                     {r.distanceToParticipants.map((d) => {
                       const ratio = Math.min(d.distance / 10000, 1)
                       const color = d.distance < 2000 ? '#22c55e' : d.distance < 5000 ? '#f59e0b' : '#ef4444'

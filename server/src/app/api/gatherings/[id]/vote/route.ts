@@ -44,7 +44,13 @@ export async function POST(
     if (!result) {
       const participantIds = gathering.participants.map(p => p.id);
       console.log(`[vote] 400: 投票失败 participantId=${participantId} 不在参与者列表 [${participantIds.join(', ')}]`);
-      return NextResponse.json({ error: '投票失败，请确认你是参与者' }, { status: 400 });
+      return NextResponse.json({ error: '投票失败，请确认你是干饭人之一' }, { status: 400 });
+    }
+
+    // 投票数超限
+    if (result.error) {
+      console.log(`[vote] 400: ${result.error}`);
+      return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
     console.log(`[vote] 成功: voted=${result.voted}`);

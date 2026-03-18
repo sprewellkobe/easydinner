@@ -189,39 +189,6 @@ export async function voteRestaurant(
   })
 }
 
-/** 获取投票数据 */
-export async function getVotes(id: string): Promise<{ votes: Record<string, string[]> }> {
-  return request(`/api/gatherings/${id}/vote`)
-}
-
-/** 获取餐厅详情 */
-export async function getRestaurantDetail(
-  restaurantId: string,
-  params: { name: string; lng: number; lat: number }
-): Promise<Restaurant> {
-  const query = `id=${restaurantId}&name=${encodeURIComponent(params.name)}&lng=${params.lng}&lat=${params.lat}`
-  return request(`/api/restaurant-detail?${query}`)
-}
-
-/** 搜索 POI 地点 */
-export async function searchPOI(keyword: string, lat?: number, lng?: number): Promise<{ results: Array<{ name: string; lng: number; lat: number; address?: string }> }> {
-  let url = `/api/search-poi?keyword=${encodeURIComponent(keyword)}`
-  if (lat !== undefined && lng !== undefined) {
-    url += `&lat=${lat}&lng=${lng}`
-  }
-  return request(url)
-}
-
-/** 获取附近 POI 地点（基于经纬度周边搜索） */
-export async function nearbyPOI(lat: number, lng: number): Promise<{ results: Array<{ name: string; lng: number; lat: number; address: string; distance?: number }> }> {
-  return request(`/api/nearby-poi?lat=${lat}&lng=${lng}`)
-}
-
-/** 逆地理编码 - 根据经纬度获取地址名称 */
-export async function reverseGeocode(lng: number, lat: number): Promise<{ address: string }> {
-  return request(`/api/reverse-geocode?lng=${lng}&lat=${lat}`)
-}
-
 // ================ 我的饭局 ================
 
 const MY_GATHERINGS_KEY = 'yuefan_my_gatherings'
@@ -256,33 +223,52 @@ export async function deleteGatheringById(id: string, creatorId: string): Promis
   removeMyGatheringId(id)
 }
 
-/** 批量获取我的饭局详情（跳过已删除/获取失败的） */
+/** 批量获取我的饭局详情（使用 batch 接口，一次请求获取所有） */
 export async function getMyGatherings(): Promise<Gathering[]> {
   const ids = getMyGatheringIds()
   if (ids.length === 0) return []
 
-  const results: Gathering[] = []
-  // 并发请求，最多同时5个
-  const batchSize = 5
-  for (let i = 0; i < ids.length; i += batchSize) {
-    const batch = ids.slice(i, i + batchSize)
-    const promises = batch.map(async (id) => {
-      try {
-        const res = await getGathering(id)
-        return res.gathering
-      } catch {
-        return null
-      }
+  try {
+    const data = await request<{ gatherings: Gathering[] }>('/api/gatherings/batch', {
+      method: 'POST',
+      data: { ids } as unknown as Record<string, unknown>,
     })
-    const batchResults = await Promise.all(promises)
-    results.push(...batchResults.filter((g): g is Gathering => g !== null))
-  }
 
-  // 清理已失效的 ID
-  const validIds = results.map(g => g.id)
-  if (validIds.length !== ids.length) {
-    storage.setJSON(MY_GATHERINGS_KEY, validIds)
-  }
+    const results = data.gatherings || []
 
-  return results
+    // 清理已失效的 ID（服务端未找到的）
+    const validIds = results.map(g => g.id)
+    if (validIds.length !== ids.length) {
+      // 保留顺序：按原 ids 顺序保留有效的
+      const validSet = new Set(validIds)
+      const orderedValidIds = ids.filter(id => validSet.has(id))
+      storage.setJSON(MY_GATHERINGS_KEY, orderedValidIds)
+    }
+
+    return results
+  } catch {
+    // 批量接口失败时降级为逐个请求
+    const results: Gathering[] = []
+    const batchSize = 5
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize)
+      const promises = batch.map(async (id) => {
+        try {
+          const res = await getGathering(id)
+          return res.gathering
+        } catch {
+          return null
+        }
+      })
+      const batchResults = await Promise.all(promises)
+      results.push(...batchResults.filter((g): g is Gathering => g !== null))
+    }
+
+    const validIds = results.map(g => g.id)
+    if (validIds.length !== ids.length) {
+      storage.setJSON(MY_GATHERINGS_KEY, validIds)
+    }
+
+    return results
+  }
 }

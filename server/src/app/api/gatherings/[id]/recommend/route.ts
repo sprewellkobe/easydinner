@@ -7,7 +7,6 @@ import {
   RECOMMEND_BASE_RADIUS,
   RECOMMEND_PAGE_SIZE,
   RECOMMEND_MAX_RESULTS,
-  RECOMMEND_MIN_RESULTS,
   FORMAL_MIN_RATING,
   SUBWAY_SEARCH_RADIUS,
   BUS_SEARCH_RADIUS,
@@ -124,8 +123,8 @@ async function queryTransportation(lng: number, lat: number): Promise<Transporta
   try {
     // 同时查附近地铁站（150500/150501=地铁站）和公交站（150700=公交站）
     const [subwayRes, busRes] = await Promise.all([
-      fetch(`https://restapi.amap.com/v3/place/around?key=${amapKey}&location=${lng},${lat}&radius=1000&types=150500|150501&offset=3&page=1`),
-      fetch(`https://restapi.amap.com/v3/place/around?key=${amapKey}&location=${lng},${lat}&radius=500&types=150700&offset=20&page=1`),
+      fetch(`${AMAP_BASE_URL}/place/around?key=${amapKey}&location=${lng},${lat}&radius=${SUBWAY_SEARCH_RADIUS}&types=150500|150501&offset=3&page=1`),
+      fetch(`${AMAP_BASE_URL}/place/around?key=${amapKey}&location=${lng},${lat}&radius=${BUS_SEARCH_RADIUS}&types=150700&offset=20&page=1`),
     ]);
 
     const [subwayData, busData] = await Promise.all([subwayRes.json(), busRes.json()]);
@@ -223,11 +222,11 @@ export async function GET(
       const diningType = gathering.diningType || 'any';
       const searchParams = getDiningSearchParams(diningType);
       // 使用高德地图 Web 服务 API
-      const baseRadius = 3000; // 初始 3km 搜索半径
+      const baseRadius = RECOMMEND_BASE_RADIUS;
       
       // 可能需要多次搜索（如果过滤后结果不够）
       for (const searchRadius of [baseRadius, baseRadius * 2, baseRadius * 3]) {
-        const url = `https://restapi.amap.com/v3/place/around?key=${amapKey}&location=${center.lng},${center.lat}&radius=${searchRadius}&types=${searchParams.types}&offset=50&page=1&extensions=all`;
+        const url = `${AMAP_BASE_URL}/place/around?key=${amapKey}&location=${center.lng},${center.lat}&radius=${searchRadius}&types=${searchParams.types}&offset=${RECOMMEND_PAGE_SIZE}&page=1&extensions=all`;
 
         const res = await fetch(url);
         const data = await res.json();
@@ -245,7 +244,8 @@ export async function GET(
             }));
 
             const fullType = poi.type || '';
-            const bizExt = poi.biz_ext ? JSON.parse(JSON.stringify(poi.biz_ext)) : {};
+            const rawBizExt = poi.biz_ext;
+            const bizExt: Record<string, string> = typeof rawBizExt === 'object' && rawBizExt ? rawBizExt : {};
             return {
               id: poi.id,
               name: poi.name,
@@ -284,7 +284,7 @@ export async function GET(
           }
           // 正餐模式：额外过滤掉评分低于 4.0 的（保证推荐品质）
           if (diningType === 'formal') {
-            restaurants = restaurants.filter(r => !r.rating || r.rating >= 4.0);
+            restaurants = restaurants.filter(r => !r.rating || r.rating >= FORMAL_MIN_RATING);
 
             // 一线城市正餐：过滤掉人均低于40元的餐厅（有价格数据且低于阈值的才过滤，没有价格数据的保留）
             const isTier1 = (restaurants as (Restaurant & { _cityName?: string })[]).some(r =>
@@ -350,8 +350,8 @@ export async function GET(
       return scoreA - scoreB;
     });
 
-    // 多样性选择：从候选池中选 10 个，兼顾距离评分和品类/价格多样性
-    const topRestaurants = selectDiverseRestaurants(restaurants, 10, participantPoints);
+    // 多样性选择：从候选池中选出推荐数量，兼顾距离评分和品类/价格多样性
+    const topRestaurants = selectDiverseRestaurants(restaurants, RECOMMEND_MAX_RESULTS);
 
     // 并发查询前 10 个餐厅的交通便利度
     const transportResults = await Promise.all(
@@ -393,7 +393,6 @@ export async function GET(
 function selectDiverseRestaurants(
   candidates: Restaurant[],
   count: number,
-  _participantPoints: Point[]
 ): Restaurant[] {
   if (candidates.length <= count) return candidates;
 
