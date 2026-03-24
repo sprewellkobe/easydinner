@@ -19,6 +19,18 @@ const DINING_TYPE_LABELS: Record<string, { emoji: string; label: string }> = {
   any: { emoji: '🎲', label: '不限' },
 }
 
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
+
+/** 将 "2026-03-19" 格式化为 "3月19日 周三" */
+function formatDateWithWeekday(dateStr: string): string {
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return dateStr
+  const month = d.getMonth() + 1
+  const day = d.getDate()
+  const weekday = WEEKDAYS[d.getDay()]
+  return `${month}月${day}日 周${weekday}`
+}
+
 export default function GatheringPage() {
   const router = useRouter()
   const gatheringId = router.params.id || router.params.dinnerID || ''
@@ -357,8 +369,7 @@ export default function GatheringPage() {
               <Text className='header-title'>{gathering.title}</Text>
             </View>
             <Text className='header-meta'>
-              {gathering.creatorName} 发起 · {gathering.date}
-              {gathering.meal ? ` ${gathering.meal}` : ''} {gathering.time || ''}
+              {gathering.creatorName} 发起 · <Text className='header-date'>{formatDateWithWeekday(gathering.date)} {gathering.meal || ''} {gathering.time || ''}</Text>
               {gathering.diningType && gathering.diningType !== 'any'
                 ? ` · ${DINING_TYPE_LABELS[gathering.diningType]?.emoji || ''} ${DINING_TYPE_LABELS[gathering.diningType]?.label || ''}`
                 : ''}

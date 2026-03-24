@@ -75,6 +75,12 @@
     font-size: 22px;
     color: #9ca3af;
     line-height: 1.5;
+
+    .header-date {
+      font-size: 26px;
+      color: #374151;
+      font-weight: 600;
+    }
   }
 
   .status-badge {
@@ -154,6 +160,8 @@
       color: rgba(255, 255, 255, 0.8);
       margin-top: 2px;
     }
+
+
   }
 
   .confirmed-map {

@@ -1,5 +1,5 @@
 import { View, Text, Input, Picker, ScrollView } from '@tarojs/components'
-import Taro, { useDidShow } from '@tarojs/taro'
+import Taro, { useDidShow, useShareAppMessage, useShareTimeline } from '@tarojs/taro'
 import { useState, useMemo, useCallback } from 'react'
 import LocationPicker from '../../components/LocationPicker'
 import { createGathering, storage, getDefaultTitle, getTodayStr, getDateStr, getMyGatherings, saveMyGatheringId, deleteGatheringById, removeMyGatheringId } from '../../utils/api'
@@ -198,6 +198,17 @@ export default function Index() {
   })
   const [location, setLocation] = useState<Location | null>(() => storage.getJSON<Location>('yuefan_location'))
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // ---- 微信分享 ----
+  useShareAppMessage(() => ({
+    title: '大家就近约饭 - 让约饭更简单',
+    path: '/pages/index/index',
+  }))
+
+  useShareTimeline(() => ({
+    title: '大家就近约饭 - 让约饭更简单',
+    path: '/pages/index/index',
+  }))
 
   // 我的饭局
   const [myGatherings, setMyGatherings] = useState<Gathering[]>([])
