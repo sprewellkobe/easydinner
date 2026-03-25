@@ -600,11 +600,14 @@ export default function GatheringPage() {
                   </View>
                 </View>
 
-                {/* 地址 */}
+                {/* 地址 + 查看地图按钮 */}
                 <View className='restaurant-addr' onClick={() => setExpandedMapId(expandedMapId === r.id ? null : r.id)}>
                   <Text className='addr-icon'>📍</Text>
                   <Text className='addr-text'>{r.address}</Text>
-                  <Text className={`addr-arrow ${expandedMapId === r.id ? 'open' : ''}`}>▼</Text>
+                  <View className={`map-toggle-btn ${expandedMapId === r.id ? 'open' : ''}`}>
+                    <Text className='map-toggle-text'>{expandedMapId === r.id ? '收起地图' : '查看地图'}</Text>
+                    <Text className={`map-toggle-arrow ${expandedMapId === r.id ? 'open' : ''}`}>▼</Text>
+                  </View>
                 </View>
 
                 {/* 标签行 + 确认按钮 */}
@@ -657,10 +660,10 @@ export default function GatheringPage() {
                   </View>
                 )}
 
-                {/* 每人距离 */}
+                {/* 每人距离 + 出行时间 */}
                 {r.distanceToParticipants && r.distanceToParticipants.length > 0 && (
                   <View className='mini-distances'>
-                    <Text className='mini-dist-title'>各干饭人距离</Text>
+                    <Text className='mini-dist-title'>各干饭人距离与出行时间</Text>
                     {r.distanceToParticipants.map((d) => {
                       const ratio = Math.min(d.distance / 10000, 1)
                       const color = d.distance < 2000 ? '#22c55e' : d.distance < 5000 ? '#f59e0b' : '#ef4444'
@@ -670,7 +673,15 @@ export default function GatheringPage() {
                           <View className='distance-bar-bg'>
                             <View className='distance-bar' style={{ width: `${ratio * 100}%`, background: color }} />
                           </View>
-                          <Text className='distance-value' style={{ color }}>{formatDistance(d.distance)}</Text>
+                          <View className='distance-detail'>
+                            <Text className='distance-value' style={{ color }}>{formatDistance(d.distance)}</Text>
+                            {(d.drivingTime || d.transitTime) && (
+                              <View className='travel-times'>
+                                {d.drivingTime && <Text className='travel-tag driving'>🚗 {d.drivingTime}min</Text>}
+                                {d.transitTime && <Text className='travel-tag transit'>🚌 {d.transitTime}min</Text>}
+                              </View>
+                            )}
+                          </View>
                         </View>
                       )
                     })}

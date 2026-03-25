@@ -173,6 +173,70 @@ async function queryTransportation(lng: number, lat: number): Promise<Transporta
   return result;
 }
 
+// 查询从 origin 到 destination 的驾车和公交时间（分钟）
+// 使用高德驾车路径规划 + 公交路径规划 API
+async function queryTravelTime(
+  originLng: number, originLat: number,
+  destLng: number, destLat: number,
+): Promise<{ drivingTime?: number; transitTime?: number }> {
+  if (!amapKey) return {};
+
+  const origin = `${originLng},${originLat}`;
+  const dest = `${destLng},${destLat}`;
+  const result: { drivingTime?: number; transitTime?: number } = {};
+
+  try {
+    // 并发查询驾车和公交
+    const [drivingRes, transitRes] = await Promise.all([
+      fetch(`${AMAP_BASE_URL}/direction/driving?key=${amapKey}&origin=${origin}&destination=${dest}&strategy=0`).catch(() => null),
+      fetch(`${AMAP_BASE_URL}/direction/transit/integrated?key=${amapKey}&origin=${origin}&destination=${dest}&city=北京&strategy=0`).catch(() => null),
+    ]);
+
+    // 解析驾车时间
+    if (drivingRes) {
+      const drivingData = await drivingRes.json();
+      if (drivingData.status === '1' && drivingData.route?.paths?.[0]?.duration) {
+        const seconds = parseInt(drivingData.route.paths[0].duration, 10);
+        result.drivingTime = Math.max(1, Math.round(seconds / 60));
+      }
+    }
+
+    // 解析公交时间
+    if (transitRes) {
+      const transitData = await transitRes.json();
+      if (transitData.status === '1' && transitData.route?.transits?.[0]?.duration) {
+        const seconds = parseInt(transitData.route.transits[0].duration, 10);
+        result.transitTime = Math.max(1, Math.round(seconds / 60));
+      }
+    }
+  } catch (err) {
+    console.error('查询出行时间失败:', err);
+  }
+
+  return result;
+}
+
+// 批量查询所有参与者到一个餐厅的出行时间
+async function queryParticipantsTravelTime(
+  restaurant: { lng: number; lat: number },
+  participants: { id: string; location: { lng: number; lat: number } }[],
+): Promise<Map<string, { drivingTime?: number; transitTime?: number }>> {
+  const results = new Map<string, { drivingTime?: number; transitTime?: number }>();
+
+  // 并发查询所有参与者
+  const travelTimes = await Promise.all(
+    participants.map(p =>
+      queryTravelTime(p.location.lng, p.location.lat, restaurant.lng, restaurant.lat)
+    )
+  );
+
+  participants.forEach((p, i) => {
+    results.set(p.id, travelTimes[i]);
+  });
+
+  return results;
+}
+
 // GET - 获取餐厅推荐
 export async function GET(
   _request: NextRequest,
@@ -361,6 +425,27 @@ export async function GET(
     topRestaurants.forEach((r, i) => {
       r.transportation = transportResults[i];
     });
+
+    // 为所有餐厅查询每个参与者的驾车/公交时间
+    // 限制并发：每个餐厅并发查所有参与者，但餐厅之间串行（避免 API 限流）
+    const TRAVEL_TIME_RESTAURANT_COUNT = Math.min(topRestaurants.length, 10);
+    for (let i = 0; i < TRAVEL_TIME_RESTAURANT_COUNT; i++) {
+      const r = topRestaurants[i];
+      if (!r.distanceToParticipants) continue;
+      try {
+        const travelMap = await queryParticipantsTravelTime(r, participants);
+        r.distanceToParticipants = r.distanceToParticipants.map(d => {
+          const travel = travelMap.get(d.participantId);
+          return {
+            ...d,
+            drivingTime: travel?.drivingTime,
+            transitTime: travel?.transitTime,
+          };
+        });
+      } catch (err) {
+        console.error(`[recommend] 查询餐厅 ${r.name} 出行时间失败:`, err);
+      }
+    }
 
     // 更新饭局的推荐餐厅、参与者快照和聚餐类型快照
     // 餐厅列表变化时清空旧投票（旧投票对应的餐厅已不存在）

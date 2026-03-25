@@ -59,6 +59,8 @@ export const RESTAURANT_MAX_TAGS = envNum('RESTAURANT_MAX_TAGS', 3);
 export const SUBWAY_SEARCH_RADIUS = envNum('SUBWAY_SEARCH_RADIUS', 1000);
 export const BUS_SEARCH_RADIUS = envNum('BUS_SEARCH_RADIUS', 500);
 
-// ---------- 推荐算法参数 ----------
+// ---------- 推荐算法参数（多数人优先策略） ----------
+// 中位数距离权重：越高越偏向"对大多数人近"的餐厅（不受离群远的人影响）
 export const SCORE_AVG_DISTANCE_WEIGHT = envNum('SCORE_AVG_DISTANCE_WEIGHT', 0.7);
+// 平均距离权重：保留一定的整体考量
 export const SCORE_MAX_DISTANCE_WEIGHT = envNum('SCORE_MAX_DISTANCE_WEIGHT', 0.3);

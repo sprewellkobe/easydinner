@@ -18,6 +18,8 @@ export interface ParticipantDistance {
   participantId: string
   participantName: string
   distance: number
+  drivingTime?: number   // 驾车时间（分钟）
+  transitTime?: number   // 公交时间（分钟）
 }
 
 /** 交通信息 */
